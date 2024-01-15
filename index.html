@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item API Interaction</title>
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+</head>
+<body>
+
+<h1>Item API Interaction</h1>
+
+<label for="itemNumber">Enter Item Number:</label>
+<input type="text" id="itemNumber" placeholder="Item Number">
+<button onclick="getAllItems()">Get All Items</button>
+<button onclick="getSingleItem()">Get Single Item</button>
+
+<div id="result"></div>
+
+<script>
+    function getAllItems() {
+        $.get("/items/all", function(data) {
+            displayResult(data);
+        });
+    }
+
+    function getSingleItem() {
+        var itemNumber = $("#itemNumber").val();
+        $.get("/items/" + itemNumber, function(data) {
+            displayResult(data);
+        });
+    }
+
+    function displayResult(data) {
+        var resultDiv = $("#result");
+        resultDiv.empty();
+
+        if (Array.isArray(data) && data.length > 0) {
+            for (var i = 0; i < data.length; i++) {
+                resultDiv.append("<p>" + JSON.stringify(data[i]) + "</p>");
+            }
+        } else {
+            resultDiv.text("No data found.");
+        }
+    }
+</script>
+
+</body>
+</html>
