@@ -1,19 +1,22 @@
 from flask import Flask, render_template, request
 from flask_cors import CORS
 from flask_restx import Api, Resource, fields
+from requests.auth import HTTPBasicAuth as RequestsHTTPBasicAuth
 import requests
-from requests.auth import HTTPBasicAuth
+from flask_httpauth import HTTPBasicAuth
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 api = Api(app, title='Products API', version='1.0', description='API to fetch item nav items')
 
+auth = HTTPBasicAuth()
+
 # Namespace for items
 ns = api.namespace('items', description='Operations related to items')
 
 NAV_API_URL = "http://ABM-NAV2017.abmgroup.co.ke:7048/DynamicsNAV100/ODataV4/Company('Chloride%20Exide%20Kenya%20Ltd')/ProductsAPI"
-NAV_USERNAME = ""
-NAV_PASSWORD = ""
+NAV_USERNAME = "Mzito"  
+NAV_PASSWORD = "Abmgrp@2019"  
 
 # Model for item
 item_model = api.model('Item', {
@@ -26,19 +29,25 @@ item_model = api.model('Item', {
 })
 
 # Function to retrieve all items
+@auth.login_required
 def get_all_items():
-    response = requests.get(NAV_API_URL, auth=HTTPBasicAuth(NAV_USERNAME, NAV_PASSWORD))
+    response = requests.get(NAV_API_URL, auth=RequestsHTTPBasicAuth(NAV_USERNAME, NAV_PASSWORD))
     if response.status_code == 200:
         return response.json().get('value', [])
+    elif response.status_code == 401:
+        raise requests.exceptions.RequestException(f"Authentication failed. Please check your credentials.")
     else:
         raise requests.exceptions.RequestException(f"Error in request: {response.status_code} - {response.text}")
 
 # Function to retrieve a single item by item number
+@auth.login_required
 def get_item_by_number(item_number):
     query_url = f"{NAV_API_URL}?$filter=No. eq '{item_number}'"
-    response = requests.get(query_url, auth=HTTPBasicAuth(NAV_USERNAME, NAV_PASSWORD))
+    response = requests.get(query_url, auth=RequestsHTTPBasicAuth(NAV_USERNAME, NAV_PASSWORD))
     if response.status_code == 200:
         return response.json().get('value', [])
+    elif response.status_code == 401:
+        raise requests.exceptions.RequestException(f"Authentication failed. Please check your credentials.")
     else:
         raise requests.exceptions.RequestException(f"Error in request: {response.status_code} - {response.text}")
 
