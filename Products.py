@@ -1,8 +1,7 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, url_for
 from flask_cors import CORS
 from flask_restx import Api, Resource, fields
-from requests.auth import HTTPBasicAuth as RequestsHTTPBasicAuth
-import requests
+from flask_oauthlib.client import OAuth
 from flask_httpauth import HTTPBasicAuth
 
 app = Flask(__name__)
@@ -10,13 +9,23 @@ CORS(app)  # Enable CORS for all routes
 api = Api(app, title='Products API', version='1.0', description='API to fetch item nav items')
 
 auth = HTTPBasicAuth()
+oauth = OAuth(app)
+
+# OAuth configuration for NAV
+nav_oauth = oauth.remote_app(
+    'nav',
+    consumer_key='your_consumer_key',  
+    consumer_secret='your_consumer_secret',  
+    request_token_params={'scope': 'user'},
+    base_url='http://ABM-NAV2017.abmgroup.co.ke:7048/DynamicsNAV100/ODataV4/',
+    request_token_url=None,
+    access_token_method='POST',
+    access_token_url='http://ABM-NAV2017.abmgroup.co.ke:7048/DynamicsNAV100/ODataV4/Company(\'Chloride%20Exide%20Kenya%20Ltd\')/ProductsAPI',
+    authorize_url=None,
+)
 
 # Namespace for items
 ns = api.namespace('items', description='Operations related to items')
-
-NAV_API_URL = "http://ABM-NAV2017.abmgroup.co.ke:7048/DynamicsNAV100/ODataV4/Company('Chloride%20Exide%20Kenya%20Ltd')/ProductsAPI"
-NAV_USERNAME = "Mzito"  
-NAV_PASSWORD = "Abmgrp@2019"  
 
 # Model for item
 item_model = api.model('Item', {
@@ -31,23 +40,25 @@ item_model = api.model('Item', {
 # Function to retrieve all items
 @auth.login_required
 def get_all_items():
-    response = requests.get(NAV_API_URL, auth=RequestsHTTPBasicAuth(NAV_USERNAME, NAV_PASSWORD))
+    token = oauth.nav.authorize_access_token()
+    headers = {'Authorization': f'Bearer {token["access_token"]}'}
+    response = requests.get(oauth.nav.base_url + '/Company(\'Chloride%20Exide%20Kenya%20Ltd\')/ProductsAPI', headers=headers)
+
     if response.status_code == 200:
         return response.json().get('value', [])
-    elif response.status_code == 401:
-        raise requests.exceptions.RequestException(f"Authentication failed. Please check your credentials.")
     else:
         raise requests.exceptions.RequestException(f"Error in request: {response.status_code} - {response.text}")
 
 # Function to retrieve a single item by item number
 @auth.login_required
 def get_item_by_number(item_number):
-    query_url = f"{NAV_API_URL}?$filter=No. eq '{item_number}'"
-    response = requests.get(query_url, auth=RequestsHTTPBasicAuth(NAV_USERNAME, NAV_PASSWORD))
+    token = oauth.nav.authorize_access_token()
+    headers = {'Authorization': f'Bearer {token["access_token"]}'}
+    query_url = f"{oauth.nav.base_url}/Company(\'Chloride%20Exide%20Kenya%20Ltd\')/ProductsAPI?$filter=No. eq '{item_number}'"
+    response = requests.get(query_url, headers=headers)
+
     if response.status_code == 200:
         return response.json().get('value', [])
-    elif response.status_code == 401:
-        raise requests.exceptions.RequestException(f"Authentication failed. Please check your credentials.")
     else:
         raise requests.exceptions.RequestException(f"Error in request: {response.status_code} - {response.text}")
 
@@ -120,5 +131,18 @@ def index():
         </html>
     ''')
 
+# OAuth callback endpoint
+@app.route('/nav/oauth-callback')
+def nav_oauth_callback():
+    resp = oauth.nav.authorized_response()
+    if resp is None or resp.get('access_token') is None:
+        return 'Access denied: reason={} error={}'.format(
+            request.args['error_reason'],
+            request.args['error_description']
+        )
+    
+    return redirect(url_for('index'))
+
+# Run the application
 if __name__ == '__main__':
     app.run(debug=True)
